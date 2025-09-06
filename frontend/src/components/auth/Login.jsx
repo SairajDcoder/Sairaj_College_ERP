@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import { Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
+import { Eye, EyeOff } from "lucide-react";
 
 const Login = () => {
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    captchaAnswer: '',
-    captchaToken: ''
+    email: "",
+    password: "",
+    captchaAnswer: "",
+    captchaToken: "",
+    rememberMe: false,
   });
-  const [captcha, setCaptcha] = useState({ question: '', token: '' });
+  const [captcha, setCaptcha] = useState({ question: "", token: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  
+  const [error, setError] = useState("");
+
   const { login, getCaptchaData } = useAuth();
   const navigate = useNavigate();
 
@@ -25,39 +26,41 @@ const Login = () => {
   const loadCaptcha = async () => {
     try {
       const captchaData = await getCaptchaData();
+      console.log(captchaData);
       setCaptcha(captchaData);
-      setFormData(prev => ({ ...prev, captchaToken: captchaData.token }));
+      setFormData((prev) => ({ ...prev, captchaToken: captchaData.token }));
     } catch (error) {
-      setError('Failed to load captcha');
+      setError("Failed to load captcha");
     }
   };
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
 
     const result = await login(
       formData.email,
       formData.password,
       formData.captchaAnswer,
-      formData.captchaToken
+      formData.captchaToken,
+      formData.rememberMe
     );
 
     if (result.success) {
-      navigate('/dashboard');
+      navigate("/dashboard");
     } else {
       setError(result.error);
       loadCaptcha(); // Reload captcha on error
     }
-    
+
     setLoading(false);
   };
 
@@ -68,8 +71,11 @@ const Login = () => {
           Sign in to your account
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Or{' '}
-          <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">
+          Or{" "}
+          <Link
+            to="/register"
+            className="font-medium text-blue-600 hover:text-blue-500"
+          >
             create a new account
           </Link>
         </p>
@@ -85,7 +91,10 @@ const Login = () => {
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Email address
               </label>
               <div className="mt-1">
@@ -103,14 +112,17 @@ const Login = () => {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Password
               </label>
               <div className="mt-1 relative">
                 <input
                   id="password"
                   name="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   required
                   value={formData.password}
@@ -132,7 +144,10 @@ const Login = () => {
             </div>
 
             <div>
-              <label htmlFor="captcha" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="captcha"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Security Question: {captcha.question} = ?
               </label>
               <div className="mt-1">
@@ -149,13 +164,32 @@ const Login = () => {
               </div>
             </div>
 
+            <div className="flex items-center">
+              <input
+                id="rememberMe"
+                name="rememberMe"
+                type="checkbox"
+                checked={formData.rememberMe}
+                onChange={(e) =>
+                  setFormData({ ...formData, rememberMe: e.target.checked })
+                }
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label
+                htmlFor="rememberMe"
+                className="ml-2 block text-sm text-gray-900"
+              >
+                Remember Me
+              </label>
+            </div>
+
             <div>
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Signing in...' : 'Sign in'}
+                {loading ? "Signing in..." : "Sign in"}
               </button>
             </div>
 
