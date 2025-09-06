@@ -6,10 +6,12 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { body, validationResult } = require("express-validator");
 
+
+
 function generateCaptcha() {
     const a = Math.floor(Math.random() * 10) + 1;
     const b = Math.floor(Math.random() * 10) + 1;
-    const question = `What is ${a} + ${b}?`;
+    const question = `What is ${a} + ${b}`;
     const answer = a + b;
     const token = Buffer.from(`${a},${b}`).toString('base64');
     return { question, token, answer };
@@ -20,13 +22,17 @@ router.get('/captcha', (req, res) => {
     res.json({ question, token });
 });
 
+
 const auth = (req, res, next) => {
-    const raw = req.header("Authorization");
-    const token = raw?.startsWith("Bearer ") ? raw.replace("Bearer ", "") : null;
-    console.log(token);
+    const token =
+        req.cookies?.token ||
+        (req.header("Authorization")?.startsWith("Bearer ")
+            ? req.header("Authorization").replace("Bearer ", "")
+            : null);
 
     if (!token)
         return res.status(401).json({ error: "Access denied: missing token" });
+
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.user = { id: decoded.id };
@@ -35,6 +41,16 @@ const auth = (req, res, next) => {
         return res.status(401).json({ error: "Invalid or expired token" });
     }
 };
+
+router.get("/me", auth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select("-password");
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
 
 const validateSignup = [
     body("firstName")
@@ -125,9 +141,16 @@ router.post("/register", validateSignup, async (req, res) => {
             },
         });
     } catch (err) {
-        console.error(err.message); 
+        console.error(err.message);
         res.status(500).json({ msg: "Server error", error: err.message });
     }
+});
+
+const cookieOptions = (rememberMe) => ({
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : null, // 7 days if rememberMe checked
 });
 
 router.post("/login", validateLogin, async (req, res) => {
@@ -136,10 +159,10 @@ router.post("/login", validateLogin, async (req, res) => {
         if (!errors.isEmpty())
             return res.status(400).json({ error: errors.array()[0].msg });
 
-        const { email, password, captchaAnswer, captchaToken } = req.body;
+        const { email, password, captchaAnswer, captchaToken, rememberMe } = req.body;
 
-        const decoded = Buffer.from(captchaToken, 'base64').toString();
-        const [a, b] = decoded.split(',').map(Number);
+        const decoded = Buffer.from(captchaToken, "base64").toString();
+        const [a, b] = decoded.split(",").map(Number);
         const expectedAnswer = a + b;
         if (parseInt(captchaAnswer) !== expectedAnswer) {
             return res.status(400).json({ error: "Invalid captcha answer" });
@@ -151,9 +174,14 @@ router.post("/login", validateLogin, async (req, res) => {
         const ok = await bcrypt.compare(password, user.password);
         if (!ok) return res.status(401).json({ error: "Invalid credentials" });
 
-        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+            expiresIn: rememberMe ? "7d" : "1h",
+        });
+
+        res.cookie("token", token, cookieOptions(rememberMe));
+
         res.json({
-            token,
+            message: "Login successful",
             user: {
                 id: user._id,
                 firstName: user.firstName,
@@ -161,14 +189,25 @@ router.post("/login", validateLogin, async (req, res) => {
                 email: user.email,
                 role: user.role,
                 studentId: user.studentId,
-                department: user.department
-            }
+                department: user.department,
+            },
         });
     } catch (error) {
         console.error("Login error:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
+// routes/auth.js
+router.post("/logout", (req, res) => {
+    res.clearCookie("token", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+    });
+    res.json({ message: "Logged out successfully" });
+});
+
 
 router.get("/users", auth, async (req, res) => {
     try {

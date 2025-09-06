@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { loginUser, registerUser, getCaptcha } from '../services/api';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import api, { loginUser, registerUser, getCaptcha } from "../services/api";
 
 const AuthContext = createContext();
 
@@ -8,50 +8,56 @@ export { AuthContext };
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Check for stored token on app load
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-    
-    if (token && userData) {
+    const fetchUser = async () => {
+      setLoading(true);
       try {
-        setUser(JSON.parse(userData));
-      } catch (error) {
-        console.error('Error parsing stored user data:', error);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        const res = await api.get("/auth/me", { withCredentials: true });
+        setUser(res.data);
+      } catch {
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
-    }
-    setLoading(false);
+    };
+
+    fetchUser();
   }, []);
 
-  const login = async (email, password, captchaAnswer, captchaToken) => {
+  const login = async (
+    email,
+    password,
+    captchaAnswer,
+    captchaToken,
+    rememberMe
+  ) => {
     try {
-      console.log('Attempting login with:', { email, captchaAnswer, captchaToken });
-      const response = await loginUser(email, password, captchaAnswer, captchaToken);
-      console.log('Login response:', response);
-      const { token, user: userData } = response.data;
-      
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
+      const response = await loginUser(
+        email,
+        password,
+        captchaAnswer,
+        captchaToken,
+        rememberMe
+      );
+      const { user: userData } = response.data;
+
+      localStorage.setItem("user", JSON.stringify(userData));
       setUser(userData);
-      
-      console.log('Login successful, user set:', userData);
+
       return { success: true };
     } catch (error) {
-      console.error('Login error:', error);
-      return { 
-        success: false, 
-        error: error.response?.data?.error || 'Login failed' 
+      return {
+        success: false,
+        error: error.response?.data?.error || "Login failed",
       };
     }
   };
@@ -61,17 +67,22 @@ export const AuthProvider = ({ children }) => {
       await registerUser(userData, captchaAnswer, captchaToken);
       return { success: true };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error.response?.data?.error || 'Registration failed' 
+      return {
+        success: false,
+        error: error.response?.data?.error || "Registration failed",
       };
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
+  const logout = async () => {
+    try {
+      await api.post("/auth/logout"); // call backend to clear cookie
+    } catch (err) {
+      console.error("Logout failed:", err);
+    } finally {
+      localStorage.removeItem("user"); // optional
+      setUser(null);
+    }
   };
 
   const getCaptchaData = async () => {
@@ -79,7 +90,7 @@ export const AuthProvider = ({ children }) => {
       const response = await getCaptcha();
       return response.data;
     } catch (error) {
-      throw new Error('Failed to get captcha');
+      throw new Error("Failed to get captcha");
     }
   };
 
@@ -89,12 +100,8 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    getCaptchaData
+    getCaptchaData,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

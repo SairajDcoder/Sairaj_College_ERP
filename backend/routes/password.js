@@ -4,6 +4,8 @@ const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
 const User = require("../models/User");
 const { body, validationResult } = require("express-validator");
+require("dotenv").config();
+
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
