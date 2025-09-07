@@ -3,6 +3,7 @@ import {
   Routes,
   Route,
   Navigate,
+  Link,
 } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { useAuth } from "./hooks/useAuth";
@@ -85,7 +86,8 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Protected route */}
+
+      {/* Protected routes */}
       <Route
         path="/dashboard"
         element={

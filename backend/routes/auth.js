@@ -1,26 +1,14 @@
 
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+const EmailOtp = require('../models/EmailOtp');
+const { sendOtpEmail } = require('../utils/email'); 
 const { body, validationResult } = require("express-validator");
 
 
-
-function generateCaptcha() {
-    const a = Math.floor(Math.random() * 10) + 1;
-    const b = Math.floor(Math.random() * 10) + 1;
-    const question = `What is ${a} + ${b}`;
-    const answer = a + b;
-    const token = Buffer.from(`${a},${b}`).toString('base64');
-    return { question, token, answer };
-}
-
-router.get('/captcha', (req, res) => {
-    const { question, token } = generateCaptcha();
-    res.json({ question, token });
-});
 
 
 const auth = (req, res, next) => {
@@ -73,10 +61,6 @@ const validateSignup = [
         .optional().isString(),
     body("department")
         .optional().isString(),
-    body("captchaAnswer")
-        .notEmpty().withMessage("Captcha answer is required"),
-    body("captchaToken")
-        .notEmpty().withMessage("Captcha token is required"),
 ];
 
 const validateLogin = [
@@ -85,26 +69,132 @@ const validateLogin = [
         .notEmpty().withMessage("Email is required"),
     body("password")
         .isString().withMessage("Password must be a string")
-        .notEmpty().withMessage("Password is required"),
-    body("captchaAnswer")
-        .notEmpty().withMessage("Captcha answer is required"),
-    body("captchaToken")
-        .notEmpty().withMessage("Captcha token is required"),
+        .notEmpty().withMessage("Password is required")
 ];
+
+const validateOtp = [
+    body("userId")
+        .notEmpty().withMessage("User ID is required"),
+    body("otp")
+        .isLength({ min: 6, max: 6 }).withMessage("OTP must be 6 digits")
+];
+
+// Helper function to generate OTP
+const generateOTP = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Step 1: Login with email and password
+router.post('/login', validateLogin, async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    try {
+        const { email, password } = req.body;
+
+        // Find user
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ error: 'Invalid credentials' });
+        }
+
+        // Check password
+        const validPassword = await bcrypt.compare(password, user.password);
+        if (!validPassword) {
+            return res.status(400).json({ error: 'Invalid credentials' });
+        }
+
+        // Generate and save OTP
+        const otp = generateOTP();
+        
+        // Remove any existing OTPs for this user
+        await EmailOtp.deleteMany({ userId: user._id });
+        
+        // Create new OTP record
+        await EmailOtp.create({
+            userId: user._id,
+            email: user.email,
+            otp
+        });
+
+        // Send OTP email
+        const emailSent = await sendOtpEmail(user.email, otp);
+        if (!emailSent) {
+            return res.status(500).json({ error: 'Failed to send OTP email' });
+        }
+
+        res.json({ 
+            message: 'OTP sent to your email',
+            userId: user._id 
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Step 2: Verify OTP and complete login
+router.post('/verify-otp', validateOtp, async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    try {
+        const { userId, otp } = req.body;
+
+        // Find OTP record
+        const otpRecord = await EmailOtp.findOne({ userId });
+        if (!otpRecord) {
+            return res.status(400).json({ error: 'OTP expired or invalid' });
+        }
+
+        // Verify OTP
+        if (otpRecord.otp !== otp) {
+            return res.status(400).json({ error: 'Invalid OTP' });
+        }
+
+        // Get user data
+        const user = await User.findById(userId).select('-password');
+        if (!user) {
+            return res.status(400).json({ error: 'User not found' });
+        }
+
+        // Delete used OTP
+        await EmailOtp.deleteOne({ _id: otpRecord._id });
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { id: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
+        res.json({
+            token,
+            user
+        });
+    } catch (error) {
+        console.error('OTP verification error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
 router.post("/register", validateSignup, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty())
             return res.status(400).json({ error: errors.array()[0].msg });
-        const { firstName, lastName, email, password, role, studentId, department, captchaAnswer, captchaToken } = req.body;
-
-        const decoded = Buffer.from(captchaToken, 'base64').toString();
-        const [a, b] = decoded.split(',').map(Number);
-        const expectedAnswer = a + b;
-        if (parseInt(captchaAnswer) !== expectedAnswer) {
-            return res.status(400).json({ error: "Invalid captcha answer" });
-        }
+        const { firstName, lastName, email, password, role, studentId, department } = req.body;
 
         let user = await User.findOne({ email });
         if (user) {
@@ -159,14 +249,7 @@ router.post("/login", validateLogin, async (req, res) => {
         if (!errors.isEmpty())
             return res.status(400).json({ error: errors.array()[0].msg });
 
-        const { email, password, captchaAnswer, captchaToken, rememberMe } = req.body;
-
-        const decoded = Buffer.from(captchaToken, "base64").toString();
-        const [a, b] = decoded.split(",").map(Number);
-        const expectedAnswer = a + b;
-        if (parseInt(captchaAnswer) !== expectedAnswer) {
-            return res.status(400).json({ error: "Invalid captcha answer" });
-        }
+        const { email, password, rememberMe } = req.body;
 
         const user = await User.findOne({ email });
         if (!user) return res.status(401).json({ error: "Invalid credentials" });

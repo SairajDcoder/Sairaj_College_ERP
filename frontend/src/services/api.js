@@ -12,6 +12,10 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     config.withCredentials = true;
     return config;
   },
@@ -33,13 +37,13 @@ api.interceptors.response.use(
 );
 
 // Auth API calls
-export const getCaptcha = () => api.get('/auth/captcha');
+export const loginUser = (email, password) =>
+  api.post("/auth/login", { email, password }, { withCredentials: true });
 
-export const loginUser = (email, password, captchaAnswer, captchaToken, rememberMe) =>
-  api.post("/auth/login", { email, password, captchaAnswer, captchaToken, rememberMe }, { withCredentials: true });
+export const verifyLoginOtp = (userId, otp) =>
+  api.post("/auth/verify-otp", { userId, otp }, { withCredentials: true });
 
-
-export const registerUser = (userData, captchaAnswer, captchaToken) =>
-  api.post('/auth/register', { ...userData, captchaAnswer, captchaToken });
+export const registerUser = (userData) =>
+  api.post('/auth/register', userData);
 
 export default api;

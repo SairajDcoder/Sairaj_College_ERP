@@ -12,32 +12,15 @@ const Register = () => {
     lastName: '',
     role: 'student',
     studentId: '',
-    department: '',
-    captchaAnswer: '',
-    captchaToken: ''
+    department: ''
   });
-  const [captcha, setCaptcha] = useState({ question: '', token: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { register, getCaptchaData } = useAuth();
+  const { register } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    loadCaptcha();
-  }, []);
-
-  const loadCaptcha = async () => {
-    try {
-      const captchaData = await getCaptchaData();
-      setCaptcha(captchaData);
-      setFormData(prev => ({ ...prev, captchaToken: captchaData.token }));
-    } catch (error) {
-      setError('Failed to load captcha');
-    }
-  };
 
   const handleChange = (e) => {
     setFormData({
@@ -75,13 +58,12 @@ const Register = () => {
       department: formData.department || undefined
     };
 
-    const result = await register(userData, formData.captchaAnswer, formData.captchaToken);
+    const result = await register(userData);
 
     if (result.success) {
       navigate('/login');
     } else {
       setError(result.error);
-      loadCaptcha(); // Reload captcha on error
     }
     
     setLoading(false);
@@ -258,21 +240,7 @@ const Register = () => {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="captcha" className="block text-sm font-medium text-gray-700">
-                Security Question: {captcha.question} = ?
-              </label>
-              <input
-                id="captchaAnswer"
-                name="captchaAnswer"
-                type="number"
-                required
-                value={formData.captchaAnswer}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter the answer"
-              />
-            </div>
+
 
             <div>
               <button

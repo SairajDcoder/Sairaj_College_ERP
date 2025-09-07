@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import api, { loginUser, registerUser, getCaptcha } from "../services/api";
+import api, { loginUser, registerUser, verifyLoginOtp } from "../services/api";
 
 const AuthContext = createContext();
 
@@ -33,23 +33,9 @@ export const AuthProvider = ({ children }) => {
     fetchUser();
   }, []);
 
-  const login = async (
-    email,
-    password,
-    captchaAnswer,
-    captchaToken,
-    rememberMe
-  ) => {
+  const login = async (token, userData) => {
     try {
-      const response = await loginUser(
-        email,
-        password,
-        captchaAnswer,
-        captchaToken,
-        rememberMe
-      );
-      const { user: userData } = response.data;
-
+      localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(userData));
       setUser(userData);
 
@@ -62,9 +48,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (userData, captchaAnswer, captchaToken) => {
+  const register = async (userData) => {
     try {
-      await registerUser(userData, captchaAnswer, captchaToken);
+      await registerUser(userData);
       return { success: true };
     } catch (error) {
       return {
@@ -85,14 +71,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const getCaptchaData = async () => {
-    try {
-      const response = await getCaptcha();
-      return response.data;
-    } catch (error) {
-      throw new Error("Failed to get captcha");
-    }
-  };
+
 
   const value = {
     user,
@@ -100,7 +79,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    getCaptchaData,
+
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

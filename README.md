@@ -24,7 +24,7 @@ A simple authentication system built with React.js, Express.js, and MongoDB.
 ## Features
 
 - User registration with role selection (Student/Professor)
-- User login with CAPTCHA verification
+- User login with email OTP verification
 - JWT token-based authentication
 - Protected routes
 - Simple dashboard showing user information
@@ -124,13 +124,13 @@ project/
 
 ### Authentication
 - `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
-- `GET /api/auth/captcha` - Get CAPTCHA challenge
+- `POST /api/auth/login` - User login (sends OTP)
+- `POST /api/auth/verify-otp` - Verify OTP and complete login
 
 ## Usage
 
 1. **Register**: Create a new account with email, password, and role
-2. **Login**: Sign in with your credentials and solve the CAPTCHA
+2. **Login**: Sign in with your credentials and verify OTP sent to email
 3. **Dashboard**: View your user information and logout
 
 ## Security Features
@@ -141,7 +141,7 @@ project/
 - CORS configuration
 - Rate limiting
 - Helmet.js security headers
-- CAPTCHA verification
+- Email OTP verification
 
 ## License
 
